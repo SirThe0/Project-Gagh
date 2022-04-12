@@ -279,6 +279,7 @@ void loop() {
   {
     TimeLastMotorSpeedChanged = millis();
     PrevCommandRev = CommandRev;
+    Serial.println("Motor Speed Changed");
   }
     
   // Process speed control  
@@ -315,18 +316,21 @@ void ProcessButtons()
   if( !RevTriggerPressed && FireFullTriggerBounce.fell() )
   {
     RequestShot = true; // manual shot request
+    Serial.println("Semi Auto Shot Requested");
   }
-  else if( RevTriggerPressed && FireHalfTriggerBounce.rose() )
+  else if( RevTriggerPressed && FireHalfTriggerBounce.fell() )
   {
     if( (millis() < TimeSinceCQBRevRequest) && (TimeSinceCQBRevRequest - millis() >= 90) ) // Sufficient time has passed for flywheels to rev for prefiring
     {
       RequestShot = true; // Prefire semi shot request on CQB mode.
       CQBMode = true;
+      Serial.println("CQB Semi Auto Requested");
     }
   }
   else if( RevTriggerPressed && FireFullTriggerPressed && CQBMode == true)
   {
     RequestShot = true; // fire request 
+    Serial.println("CQB Full Auto Requested");
   }
 
   if( (!RevTriggerPressed && FireFullTriggerBounce.rose()) || (RevTriggerPressed && (FireHalfTriggerBounce.rose() || FireFullTriggerBounce.rose())) )
@@ -336,6 +340,7 @@ void ProcessButtons()
     {
       CQBMode = false;
     }
+    Serial.println("Stop Pusher Requested");
   }
 
   // Determine the current firing mode
@@ -346,9 +351,13 @@ void ProcessButtons()
   if( !AutoFire )
   {
     if( RevTriggerBounce.read() == LOW && FireFullTriggerBounce.read() == LOW && CurrentFireMode != FIRE_MODE_AUTO_LASTSHOT )
+    {
       CurrentFireMode = FIRE_MODE_AUTO;
+    }
     else if( (RevTriggerBounce.read() == HIGH && FireHalfTriggerBounce.read() == LOW && FireFullTriggerBounce.read() == HIGH) || (RevTriggerBounce.read() == HIGH && FireFullTriggerBounce.read() == LOW) )
+    {
       CurrentFireMode = FIRE_MODE_SINGLE;
+    }
   }
 }
 
@@ -373,6 +382,7 @@ void ProcessSystemMode()
 
       ShotsToFire = 0;
       Serial.println( F("Halt pusher") );
+      Serial.println( F("Pusher Jam");
       PusherStopping = true;
       StopPusher(); 
 
@@ -440,8 +450,8 @@ void ProcessRevCommand()
     AutoRev = false;
   }
 
-  if( !AutoRev )
-  {
+ // if( !AutoRev )
+  //{
     if( !RevTriggerPressed && FireHalfTriggerPressed )
     {
       CommandRev = COMMAND_REV_FULL;
@@ -460,7 +470,7 @@ void ProcessRevCommand()
     {
       CommandRev = COMMAND_REV_HALF;
     }
-  }
+ // }
   // Else the computer is controlling, and the current rev trigger state is ignored. Autopilot will adjust CommandRev
   
 }
@@ -473,7 +483,7 @@ void ProcessMainMotors()
   if( PreviousMotorSpeed != CurrentMotorSpeed ) 
   { 
     // Debugging output
-    //Serial.println(CurrentMotorSpeed);
+    Serial.println(CurrentMotorSpeed);
 
     // Use this for Servo Library
     if( CurrentMotorSpeed > MOTOR_MAX_SPEED )
@@ -555,11 +565,11 @@ void ProcessSpeedControl()
 
   LastSetMaxSpeed = SetMaxSpeed;
 
-  Serial.print( F("New max speed % = ") );
-  Serial.println( SetMaxSpeed );
+ // Serial.print( F("New max speed % = ") );
+ // Serial.println( SetMaxSpeed );
 
-  Serial.print( F("New target speed = ") );
-  Serial.println( TargetMotorSpeed );
+  //Serial.print( F("New target speed = ") );
+  //Serial.println( TargetMotorSpeed );
 }
 
 void ProcessFiring()
@@ -573,7 +583,7 @@ void ProcessFiring()
   }
 
   static unsigned long InitiatedAutoFire = 0;
-  if( AutoFire )
+ /* if( AutoFire )
   {
     if( (InitiatedAutoFire == 0) && (CommandRev == COMMAND_REV_NONE) ) // Started auto fire process. Start spinning the motors
     {
@@ -597,7 +607,7 @@ void ProcessFiring()
   {
     InitiatedAutoFire = 0;
   }
-    
+    */
 
   if( (CommandRev == COMMAND_REV_NONE) && (SystemMode == MODE_NORMAL) && RequestShot ) // Trigger was pushed. 
   {
