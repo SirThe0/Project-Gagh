@@ -55,7 +55,7 @@ int AutoFireMotorSpeed = 0;
 #define MOTOR_SPINUP_LAG 150 // How long we give the motors before we know that have spun up.
 #define MOTOR_SPINDOWN_2S 3000
 #define MOTOR_SPINDOWN_3S 4000
-#define MOTOR_SPINDOWN_4S 6000
+#define MOTOR_SPINDOWN_4S 8000
 #define MOTOR_SPINUP_2S 0
 #define MOTOR_SPINUP_3S 0
 #define MOTOR_SPINUP_4S 0
@@ -81,7 +81,7 @@ bool CQBMode = false;
 
 
 // Inputs
-#define DebounceWindow 5 // Debounce Window = 5ms
+#define DebounceWindow 20 // Debounce Window = 5ms
 #define POT_READ_INTERVAL 100
 Bounce FireHalfTriggerBounce = Bounce();
 Bounce FireFullTriggerBounce = Bounce();
@@ -274,13 +274,12 @@ void loop() {
   ProcessSystemMode(); // Find out what the system should be doing
   
   ProcessRevCommand(); // Handle motor intentions
-  
+ 
   // Detected a change to the command. Reset the last speed change timer.
   if( PrevCommandRev != CommandRev )
   {
     TimeLastMotorSpeedChanged = millis();
     PrevCommandRev = CommandRev;
-    Serial.println("Motor Speed Changed");
   }
     
   // Process speed control  
@@ -313,13 +312,15 @@ void ProcessButtons()
   FireHalfTriggerBounce.update(); // Update the pin bounce state
   FireHalfTriggerPressed = !(FireHalfTriggerBounce.read());
 
-  if( FireHalfTriggerPressed ) // Handle requesting motor revving
+  if( FireHalfTriggerBounce.fell() ) // Handle requesting motor revving
   {
     RequestRev = true;
+    Serial.println( "Rev Requested " );
   }
-  else if( FireHalfTriggerBounce.rose() || !FireHalfTriggerPressed )
+  else if( FireHalfTriggerBounce.rose() )
   {
     RequestRev = false; // Maintain motors not rev while trigger is all the way forward
+    Serial.println( "Rev Stop" );
   }
   
   if( !RevTriggerPressed && FireFullTriggerBounce.fell() )
@@ -327,7 +328,7 @@ void ProcessButtons()
     RequestShot = true; // manual shot request
     Serial.println("Semi Auto Shot Requested");
   }
-  else if( RevTriggerPressed && (FireHalfTriggerPressed || FireFullTriggerPressed) )
+  else if( RevTriggerPressed && FireHalfTriggerBounce.fell() )
   {
     if( (RevTriggerPressed && FireHalfTriggerPressed) && ((millis() - TimeSinceCQBRevRequest) >= 90) ) // Sufficient time has passed for flywheels to rev for prefiring
     {
@@ -342,7 +343,7 @@ void ProcessButtons()
     Serial.println("CQB Full Auto Requested");
   }
 
-  if( (!RevTriggerPressed && FireFullTriggerPressed) || (RevTriggerPressed && (FireHalfTriggerPressed || FireFullTriggerPressed)) )
+  if( (!RevTriggerPressed && FireFullTriggerBounce.rose()) || (RevTriggerPressed && (FireHalfTriggerBounce.rose() || FireFullTriggerBounce.rose())) )
   {
     RequestAutoStop = true; // Programatically keep track of the request to stop the pusher
     if (FireHalfTriggerPressed && CQBMode == true)
@@ -457,6 +458,7 @@ void ProcessRevCommand()
     // Human has taken control - disengage autopilot but only when not in config mode
     prevRequestRev = RequestRev;
     AutoRev = false;
+    Serial.println( "Rev Request Received ");
   }
 
  // if( !AutoRev )
