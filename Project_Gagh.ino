@@ -77,6 +77,7 @@ unsigned long TimeSinceCQBRevRequest = 0;
 byte CommandRev = COMMAND_REV_NONE;
 byte PrevCommandRev = COMMAND_REV_NONE;
 bool AutoRev = false; // True when the computer is managing the rev process.
+bool CQBMode = false;
 
 
 // Inputs
@@ -300,7 +301,6 @@ void loop() {
  */
 void ProcessButtons()
 {
-  bool CQBMode = false;
   RevTriggerBounce.update(); // Update the pin bounce state
   RevTriggerPressed = !(RevTriggerBounce.read());
 
@@ -312,15 +312,24 @@ void ProcessButtons()
 
   FireHalfTriggerBounce.update(); // Update the pin bounce state
   FireHalfTriggerPressed = !(FireHalfTriggerBounce.read());
+
+  if( FireHalfTriggerPressed ) // Handle requesting motor revving
+  {
+    RequestRev = true;
+  }
+  else if( FireHalfTriggerBounce.rose() || !FireHalfTriggerPressed )
+  {
+    RequestRev = false; // Maintain motors not rev while trigger is all the way forward
+  }
   
   if( !RevTriggerPressed && FireFullTriggerBounce.fell() )
   {
     RequestShot = true; // manual shot request
     Serial.println("Semi Auto Shot Requested");
   }
-  else if( RevTriggerPressed && FireHalfTriggerBounce.fell() )
+  else if( RevTriggerPressed && (FireHalfTriggerPressed || FireFullTriggerPressed) )
   {
-    if( (millis() < TimeSinceCQBRevRequest) && (TimeSinceCQBRevRequest - millis() >= 90) ) // Sufficient time has passed for flywheels to rev for prefiring
+    if( (RevTriggerPressed && FireHalfTriggerPressed) && ((millis() - TimeSinceCQBRevRequest) >= 90) ) // Sufficient time has passed for flywheels to rev for prefiring
     {
       RequestShot = true; // Prefire semi shot request on CQB mode.
       CQBMode = true;
@@ -333,23 +342,23 @@ void ProcessButtons()
     Serial.println("CQB Full Auto Requested");
   }
 
-  if( (!RevTriggerPressed && FireFullTriggerBounce.rose()) || (RevTriggerPressed && (FireHalfTriggerBounce.rose() || FireFullTriggerBounce.rose())) )
+  if( (!RevTriggerPressed && FireFullTriggerPressed) || (RevTriggerPressed && (FireHalfTriggerPressed || FireFullTriggerPressed)) )
   {
     RequestAutoStop = true; // Programatically keep track of the request to stop the pusher
-    if (FireHalfTriggerBounce.rose() && CQBMode == true)
+    if (FireHalfTriggerPressed && CQBMode == true)
     {
       CQBMode = false;
     }
     Serial.println("Stop Pusher Requested");
   }
 
-  // Determine the current firing mode
+  /* Determine the current firing mode
   RevTriggerBounce.update();
   FireHalfTriggerBounce.update();
-  FireFullTriggerBounce.update();
+  FireFullTriggerBounce.update();*/
   
-  if( !AutoFire )
-  {
+ // if( !AutoFire )
+ // {
     if( RevTriggerBounce.read() == LOW && FireFullTriggerBounce.read() == LOW && CurrentFireMode != FIRE_MODE_AUTO_LASTSHOT )
     {
       CurrentFireMode = FIRE_MODE_AUTO;
@@ -358,7 +367,7 @@ void ProcessButtons()
     {
       CurrentFireMode = FIRE_MODE_SINGLE;
     }
-  }
+  //}
 }
 
 
@@ -382,12 +391,12 @@ void ProcessSystemMode()
 
       ShotsToFire = 0;
       Serial.println( F("Halt pusher") );
-      Serial.println( F("Pusher Jam");
+      Serial.println( F("Pusher Jam"));
       PusherStopping = true;
       StopPusher(); 
 
       ExecuteFiring = false;
-      if( AutoFire )
+      /*if( AutoFire )
       {
         AutoFire = false;
         RequestShot = false;
@@ -396,11 +405,11 @@ void ProcessSystemMode()
         ProcessingFireMode = FIRE_MODE_IDLE;
       }
       else
-      {
+      {*/
         CommandRev = COMMAND_REV_NONE;
         ProcessingFireMode = FIRE_MODE_IDLE; 
         RequestShot = false;      
-      }
+      //}
       
       Serial.println( F("Pusher Jam Detected") );  
       
