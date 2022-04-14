@@ -84,10 +84,10 @@ bool CQBMode = false;
 // Inputs
 #define DebounceWindow 10 // Debounce Window = 5ms
 #define POT_READ_INTERVAL 100
-Bounce2::Button FireHalfTriggerBounce = Bounce2::Button();
-Bounce2::Button FireFullTriggerBounce = Bounce2::Button();
-Bounce2::Button RevTriggerBounce = Bounce2::Button();
-Bounce2::Button CycleControlBounce = Bounce2::Button();
+Bounce FireHalfTriggerBounce = Bounce();
+Bounce FireFullTriggerBounce = Bounce();
+Bounce RevTriggerBounce = Bounce();
+Bounce CycleControlBounce = Bounce();
 
 
 //  Battery Monitoring
@@ -175,22 +175,18 @@ void setup() {
   pinMode(PIN_TRIGGER_REV, INPUT_PULLUP);
   RevTriggerBounce.attach( PIN_TRIGGER_REV );
   RevTriggerBounce.interval( DebounceWindow );
-  RevTriggerBounce.setPressedState(LOW);
 
   pinMode(PIN_TRIGGER_HALF, INPUT_PULLUP);
   FireHalfTriggerBounce.attach( PIN_TRIGGER_HALF );
   FireHalfTriggerBounce.interval( DebounceWindow );
-  FireHalfTriggerBounce.setPressedState(LOW);
   
   pinMode(PIN_TRIGGER_FULL, INPUT_PULLUP);
   FireFullTriggerBounce.attach( PIN_TRIGGER_FULL );
   FireFullTriggerBounce.interval( DebounceWindow );
-  FireHalfTriggerBounce.setPressedState(LOW);
 
   pinMode(PIN_CYCLE_CONTROL, INPUT_PULLUP);
   CycleControlBounce.attach( PIN_CYCLE_CONTROL );
   CycleControlBounce.interval( DebounceWindow );
-  FireHalfTriggerBounce.setPressedState(LOW);
 
   pinMode( PIN_SPEEDPOT, INPUT );
 
@@ -289,16 +285,16 @@ void loop() {
 void ProcessButtons()
 {
   RevTriggerBounce.update(); // Update the pin bounce state
-  RevTriggerPressed = RevTriggerBounce.pressed();
+  RevTriggerPressed = !(RevTriggerBounce.read());
 
   CycleControlBounce.update(); // Update the pin bounce state
-  CycleControlPressed = CycleControlBounce.pressed();
+  CycleControlPressed = !(CycleControlBounce.read());
 
   FireFullTriggerBounce.update(); // Update the pin bounce state
-  FireFullTriggerPressed = !(FireFullTriggerBounce.pressed());
+  FireFullTriggerPressed = !(FireFullTriggerBounce.read());
 
   FireHalfTriggerBounce.update(); // Update the pin bounce state
-  FireHalfTriggerPressed = FireHalfTriggerBounce.pressed();
+  FireHalfTriggerPressed = !(FireHalfTriggerBounce.read());
 
   if( CycleControlBounce.fell() )
   {
