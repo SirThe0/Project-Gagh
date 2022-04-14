@@ -277,6 +277,7 @@ void loop() {
   ProcessMainMotors();  
 
   ProcessFiring(); 
+  Pusher.ProcessBridge();
 }
 
 /*
@@ -304,7 +305,14 @@ void ProcessButtons()
       Serial.println( "EMERGENCY HALT" );
     }
     Pusher.PusherHeartbeat();
-    ShotsToFire--;
+    if( ShotsToFire >= 1 )
+    {
+      ShotsToFire--;
+    }
+    else
+    {
+      ShotsToFire = 0;
+    }
   }
 
   if( FireHalfTriggerBounce.fell() ) // Handle requesting motor revving
@@ -391,6 +399,11 @@ void ProcessButtons()
   {
     CurrentFireMode = FIRE_MODE_IDLE;
   }
+  // This is purely for debugging
+  if( RequestShot )
+  {
+    Serial.println( "Shot over" );
+  }
 }
 
 
@@ -404,7 +417,7 @@ void ProcessSystemMode()
     SystemMode = MODE_LOWBATTERY;
   }
 
-  else if( JamDetected ) // Jam is detected
+  else if( Pusher.HasJammed() ) // Jam is detected
   {
     SystemMode = MODE_PUSHER_JAM;
     
@@ -547,6 +560,7 @@ void ProcessFiring()
   // Requesting Shot while we were doing nothing special
   if( RequestShot )
   {
+    Serial.println( "Shot Out" );
     switch( CurrentFireMode )
     {
       case FIRE_MODE_SINGLE:
@@ -565,10 +579,9 @@ void ProcessFiring()
     Pusher.StartBridge();
   }
   
-  if( ShotsToFire = 0 && CurrentFireMode != FIRE_MODE_IDLE)
+  if( ShotsToFire <= 0 && CurrentFireMode != FIRE_MODE_IDLE)
   {
     Pusher.StopBridge();
     CurrentFireMode = FIRE_MODE_IDLE;
   }
-  Pusher.ProcessBridge();
 }
