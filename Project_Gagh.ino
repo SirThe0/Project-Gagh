@@ -83,7 +83,7 @@ bool CQBMode = false;
 
 
 // Inputs
-#define DebounceWindow 1 // Debounce Window = 5ms
+#define DebounceWindow 5 // Debounce Window = 5ms
 #define POT_READ_INTERVAL 100
 Bounce FireHalfTriggerBounce = Bounce();
 Bounce FireFullTriggerBounce = Bounce();
@@ -199,7 +199,6 @@ void setup() {
   Battery.Init();
   Battery.SetupSelectBattery();
  /* float BatteryV = Battery.GetCurrentVoltage();
-
   while( BatteryV == 99.0 ) // Hold up continuing setup till Battery is plugged in
   {
     delay( 1000 );
@@ -286,8 +285,8 @@ void loop() {
 void ProcessButtons()
 {
   // Bounce2.h is buggy and turning off input pullups. Turn it on.
-  PORTB = PORTB|0b00100001; // Force input pullup for Rev and Half pull
-  PORTD = PORTD|0b10010000; // Force input pullup for Cycle Control and Full pull
+ PORTB = PORTB|0b00100001; // Force input pullup for Rev and Half pull
+ PORTD = PORTD|0b10010000; // Force input pullup for Cycle Control and Full pull
   
   RevTriggerBounce.update(); // Update the pin bounce state
   CycleControlBounce.update(); // Update the pin bounce state
