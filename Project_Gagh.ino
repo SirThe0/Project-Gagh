@@ -55,8 +55,8 @@ bool FiringLastShot = false;
 // Motor Controls
 #define MOTOR_SPINUP_LAG 150 // How long we give the motors before we know that have spun up.
 #define MOTOR_SPINDOWN_2S 3000
-#define MOTOR_SPINDOWN_3S 10800
-#define MOTOR_SPINDOWN_4S 14400
+#define MOTOR_SPINDOWN_3S 4000
+#define MOTOR_SPINDOWN_4S 6000
 #define MOTOR_SPINUP_2S 0
 #define MOTOR_SPINUP_3S 0
 #define MOTOR_SPINUP_4S 0
@@ -82,7 +82,7 @@ bool CQBMode = false;
 
 
 // Inputs
-#define DebounceWindow 10 // Debounce Window = 5ms
+#define DebounceWindow 1 // Debounce Window = 5ms
 #define POT_READ_INTERVAL 100
 Bounce FireHalfTriggerBounce = Bounce();
 Bounce FireFullTriggerBounce = Bounce();
@@ -97,10 +97,10 @@ NarfduinoBattery Battery = NarfduinoBattery();
 NarfduinoBrushless Flywheels = NarfduinoBrushless();
 
 //  Setup Pusher
-NarfduinoBridge Pusher = NarfduinoBridge();
+NarfduinoBridge Pusher = NarfduinoBridge(5, 15);
 
 // Pusher controls
-bool PusherStopping = false;
+/*bool PusherStopping = false;
 bool PusherRetracting = false;
 bool PusherPWMFETOn = false; // Keep track of the PWM FET
 bool PusherBrakeFETOn = false; // Keep track of the brake fet
@@ -108,11 +108,8 @@ bool PusherRequest = false; // False = stop pusher, true = run pusher
 #define PusherStop 0     // Pusher brake is on, PWM is off
 #define PusherTransition 1  // Pusher brake is off, PWM is off, waiting for fet caps to discharge
 #define PusherRun 2         // Pusher brake is off, PWM is on
-byte CurrentPusherStatus = PusherTransition; // Start in transition mode for boot.
-unsigned long PusherTransitionStart = 0; // Time transition started
 #define PusherOnTransitionTime 10 // 100ms transition time 
-#define PusherOffTransitionTime 2 // 100ms transition time 
-unsigned long TimeLastPusherResetOrActivated = 0; // We are keeping track when the pusher was last reset for anti-jam purposes.
+#define PusherOffTransitionTime 2 // 100ms transition time */
 #define PusherMaxCycleTime 2000   // Max number of time between cycles before we recognise a jam
 bool JamDetected = false;
 bool RunningFiringSequence = false;
@@ -194,7 +191,7 @@ void setup() {
 
   // Setup Pusher
   Pusher.Init();
-  Pusher.EnableAntiJam(); 
+  Pusher.DisableAntiJam(); 
 
   // Set up battery
   Serial.println( F("Setting up Battery") );
@@ -230,6 +227,8 @@ void setup() {
 
   Serial.print( F("Battery Connected S = ") );
   Serial.println( Battery.GetBatteryS() );
+
+  Flywheels.Init(); // Initialize motors
 
   SystemMode = MODE_NORMAL;
   CalculateRampRates();
@@ -285,26 +284,35 @@ void loop() {
  */
 void ProcessButtons()
 {
+  // Bounce2.h is buggy and turning off input pullups. Turn it on.
+  PORTB = PORTB|0b00100001; // Force input pullup for Rev and Half pull
+  PORTD = PORTD|0b10010000; // Force input pullup for Cycle Control and Full pull
+  
   RevTriggerBounce.update(); // Update the pin bounce state
-  RevTriggerPressed = !(RevTriggerBounce.read());
-
   CycleControlBounce.update(); // Update the pin bounce state
-  CycleControlPressed = !(CycleControlBounce.read());
-
   FireFullTriggerBounce.update(); // Update the pin bounce state
-  FireFullTriggerPressed = !(FireFullTriggerBounce.read());
-
   FireHalfTriggerBounce.update(); // Update the pin bounce state
+  
+  RevTriggerPressed = !(RevTriggerBounce.read());
+  //Serial.println( RevTriggerPressed );
+  CycleControlPressed = !(CycleControlBounce.read());
+  FireFullTriggerPressed = !(FireFullTriggerBounce.read());
+  //Serial.println( FireFullTriggerPressed );
   FireHalfTriggerPressed = !(FireHalfTriggerBounce.read());
+  /*Serial.println( !FireHalfTriggerPressed );
+  Serial.println( digitalRead( PIN_TRIGGER_HALF ) );
+  Serial.println( PINB&0b00000001 );
+  Serial.println( PORTB&0b00000001 );*/
 
   if( CycleControlBounce.fell() )
   {
     if( CommandRev == COMMAND_REV_NONE )
     {
       ShotsToFire = 0;
-      Serial.println( "EMERGENCY HALT" );
+      Serial.println( F("EMERGENCY HALT") );
     }
     Pusher.PusherHeartbeat();
+    Serial.println( F("Bump Bump") );
     if( ShotsToFire >= 1 )
     {
       ShotsToFire--;
@@ -318,18 +326,18 @@ void ProcessButtons()
   if( FireHalfTriggerBounce.fell() ) // Handle requesting motor revving
   {
     RequestRev = true;
-    Serial.println( "Rev Requested " );
+    Serial.println( F("Rev Requested") );
   }
   if( FireHalfTriggerBounce.rose() )
   {
     RequestRev = false; // Maintain motors not rev while trigger is all the way forward
-    Serial.println( "Rev Stop" );
+    Serial.println( F("Rev Stop") );
   }
   
  if( !RevTriggerPressed && FireFullTriggerBounce.fell() )
   {
     RequestShot = true; // manual shot request
-    Serial.println("Semi Auto Shot Requested");
+    Serial.println(F("Semi Auto Shot Requested"));
   }
   else if( RevTriggerPressed && FireHalfTriggerBounce.fell() )
   {
@@ -337,13 +345,13 @@ void ProcessButtons()
     {
       RequestShot = true; // Prefire semi shot request on CQB mode.
       CQBMode = true;
-      Serial.println("CQB Semi Auto Requested");
+      Serial.println(F("CQB Semi Auto Requested"));
     }
   }
   else if( RevTriggerPressed && FireFullTriggerPressed && CQBMode == true)
   {
     RequestShot = true; // fire request 
-    Serial.println("CQB Full Auto Requested");
+    Serial.println(F("CQB Full Auto Requested"));
   }
   else if( RequestShot && (FireFullTriggerBounce.rose() || FireHalfTriggerBounce.rose()) )
   {
@@ -351,7 +359,7 @@ void ProcessButtons()
     {
       CQBMode = false;
     }
-    Serial.println("Stop Pusher Requested");
+    Serial.println(F("Stop Pusher Requested"));
     RequestShot = false;
   }
 
@@ -360,28 +368,28 @@ void ProcessButtons()
     if( !RevTriggerPressed && FireHalfTriggerPressed )
     {
       CommandRev = COMMAND_REV_FULL;
-      Serial.println( "Rev to full" );
+      Serial.println( F("Rev to full") );
     }
     else if( RevTriggerPressed && FireHalfTriggerBounce.fell() )
     {
       TimeSinceCQBRevRequest = millis();
       CommandRev = COMMAND_REV_FULL;
-      Serial.println( "Rev to full" );
+      Serial.println( F("Rev to full") );
     }
     else if( FireHalfTriggerBounce.rose() )
     {
       CommandRev = COMMAND_REV_NONE;
-      Serial.println( "Stop Rev" );
+      Serial.println( F("Stop Rev") );
     }else if( (RevTriggerPressed && FireHalfTriggerPressed) && ((millis() - TimeSinceCQBRevRequest) >= 90) )
     {
       CommandRev = COMMAND_REV_HALF;
-      Serial.println( "Rev to CQB speed" );
+      Serial.println( F("Rev to CQB speed") );
     }
-  } else  // Spin the motors down when something out of the ordinary happens.
+  }/* else  // Spin the motors down when something out of the ordinary happens.
   {
     CommandRev = COMMAND_REV_NONE;
     Serial.println( "System Mode not normal. Stop rev." );
-  }
+  }*/
  
   if( RevTriggerPressed && FireFullTriggerBounce.fell() && CurrentFireMode != FIRE_MODE_SINGLE )
   {
@@ -402,7 +410,7 @@ void ProcessButtons()
   // This is purely for debugging
   if( RequestShot )
   {
-    Serial.println( "Shot over" );
+    Serial.println( F("Shot over") );
   }
 }
 
@@ -415,6 +423,7 @@ void ProcessSystemMode()
   if( Battery.IsBatteryFlat() ) // Battery low
   {
     SystemMode = MODE_LOWBATTERY;
+    Serial.println(F("System Mode: Low Battery"));
   }
 
   else if( Pusher.HasJammed() ) // Jam is detected
@@ -560,7 +569,7 @@ void ProcessFiring()
   // Requesting Shot while we were doing nothing special
   if( RequestShot )
   {
-    Serial.println( "Shot Out" );
+    Serial.println( F("Shot Out") );
     switch( CurrentFireMode )
     {
       case FIRE_MODE_SINGLE:
@@ -579,7 +588,7 @@ void ProcessFiring()
     Pusher.StartBridge();
   }
   
-  if( ShotsToFire <= 0 && CurrentFireMode != FIRE_MODE_IDLE)
+  if( ShotsToFire <= 0 && CurrentFireMode != FIRE_MODE_IDLE && CycleControlPressed)
   {
     Pusher.StopBridge();
     CurrentFireMode = FIRE_MODE_IDLE;
