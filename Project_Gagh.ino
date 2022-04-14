@@ -1,5 +1,6 @@
 #define _NARFDUINO_ENABLE_BRUSHLESS_9
 #define _NARFDUINO_ENABLE_BRUSHLESS_10
+#define BOUNCE_WITH_PROMPT_DETECTION
 
 #include <Bounce2.h>
 #include <NarfduinoBattery.h>
@@ -170,19 +171,19 @@ void setup() {
   Serial.println( F("Configuring Debouncing") );  
   
   pinMode(PIN_TRIGGER_REV, INPUT_PULLUP);
-  RevTriggerBounce.attach( PIN_TRIGGER_REV );
+  RevTriggerBounce.attach( PIN_TRIGGER_REV, INPUT_PULLUP );
   RevTriggerBounce.interval( DebounceWindow );
 
   pinMode(PIN_TRIGGER_HALF, INPUT_PULLUP);
-  FireHalfTriggerBounce.attach( PIN_TRIGGER_HALF );
+  FireHalfTriggerBounce.attach( PIN_TRIGGER_HALF, INPUT_PULLUP );
   FireHalfTriggerBounce.interval( DebounceWindow );
   
   pinMode(PIN_TRIGGER_FULL, INPUT_PULLUP);
-  FireFullTriggerBounce.attach( PIN_TRIGGER_FULL );
+  FireFullTriggerBounce.attach( PIN_TRIGGER_FULL, INPUT_PULLUP );
   FireFullTriggerBounce.interval( DebounceWindow );
 
   pinMode(PIN_CYCLE_CONTROL, INPUT_PULLUP);
-  CycleControlBounce.attach( PIN_CYCLE_CONTROL );
+  CycleControlBounce.attach( PIN_CYCLE_CONTROL, INPUT_PULLUP );
   CycleControlBounce.interval( DebounceWindow );
 
   pinMode( PIN_SPEEDPOT, INPUT );
