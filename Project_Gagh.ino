@@ -276,6 +276,9 @@ void loop() {
   Battery.ProcessBatteryMonitor(); // Check battery voltage
   ProcessSystemMode(); // Find out what the system should be doing
 
+  // Override Button commands if bridge is stopped yet pusher is out of battery
+  ProcessOutOfBattery();
+
   // Detected a change to the command. Reset the last speed change timer.
   if ( PrevCommandRev != CommandRev )
   {
@@ -305,13 +308,13 @@ void ProcessButtons()
    */
   unsigned long MotorRevDownDelay = 0;
   unsigned long TimeSinceRevDownCommand = 0;
-  if ( CurrentFireMode == FIRE_MODE_RETRACT )
+  if ( !(CurrentFireMode == FIRE_MODE_RETRACT) )
   {
-    MotorRevDownDelay = 1000;
+    MotorRevDownDelay = MOTOR_REV_DOWN_DELAY;
   }
   else
   {
-    MotorRevDownDelay = MOTOR_REV_DOWN_DELAY;
+    MotorRevDownDelay = 500;
   }
   
   // Bounce2.h is buggy and turning off input pullups. Turn it on.
@@ -335,12 +338,6 @@ void ProcessButtons()
     Serial.println( digitalRead( PIN_TRIGGER_HALF ) );
     Serial.println( PINB&0b00000001 );
     Serial.println( PORTB&0b00000001 );*/
-
-  if ( !CycleControlPressed && CurrentFireMode == FIRE_MODE_IDLE ) // Pusher Stuck out of battery
-  {
-    RequestShot = true;
-    CurrentFireMode = FIRE_MODE_RETRACT;
-  }
   
   if ( CycleControlBounce.fell() )
   {
@@ -352,10 +349,7 @@ void ProcessButtons()
     }
     Pusher.PusherHeartbeat();
     Serial.println( F("Bump Bump") );
-    if ( CurrentFireMode == FIRE_MODE_LASTSHOT )
-    {
-      CommandRev = COMMAND_REV_IDLE; // Set motors to idle after Last Shot of Auto Burst completed
-    }
+    
     if ( ShotsToFire >= 1 )
     {
       ShotsToFire--;
@@ -380,13 +374,13 @@ void ProcessButtons()
 
   if ( RevTriggerPressed )
   {
-    CQBMode = false;
+    CQBMode = true;
     MotorSpinupLag = MOTOR_SPINUP_CQB_LAG;
     Serial.println( F("Limit motor speed for lower velocity and fire darts sooner") );
   }
   else
   {
-    CQBMode = true;
+    CQBMode = false;
     MotorSpinupLag = MOTOR_SPINUP_LAG;
     Serial.println( F("Motors will rev to maximum allowed speed and pusher will wait longer to give motors time to fully rev") );
   }
@@ -396,14 +390,22 @@ void ProcessButtons()
     RequestRev = true;
     Serial.println( F("Rev Requested") );
     TimeSinceRevRequest = millis();
-    if( millis() - TimeSinceRevRequest >= MotorSpinupLag )
+  }
+  else if ( FireHalfTriggerPressed )
+  {
+    if( millis() - TimeSinceRevRequest <= MotorSpinupLag )
+    {
+      RequestShot = false;
+    }
+    else
     {
       RequestShot = true;
       CurrentFireMode = FIRE_MODE_SINGLE;
       Serial.println( F("Fire Mission, Single Shot. Over.") );
     }
   }
-  else if ( FireHalfTriggerBounce.rose() )
+  
+  if ( !FireHalfTriggerPressed )
   {
     RequestRev = false;
     RequestShot = false;
@@ -435,7 +437,7 @@ void ProcessButtons()
   }
   else
   {
-    if ( (millis() - TimeSinceRevDownCommand >= MotorRevDownDelay) && CurrentFireMode != FIRE_MODE_RETRACT )
+    if ( (millis() - TimeSinceRevDownCommand >= MotorRevDownDelay) && !(CurrentFireMode == FIRE_MODE_RETRACT) )
     {
       CommandRev = COMMAND_REV_NONE;
     }
@@ -445,27 +447,6 @@ void ProcessButtons()
     }
   }
   
-  if ( FireFullTriggerBounce.rose() )
-  {
-    CurrentFireMode = FIRE_MODE_LASTSHOT;
-  }
-
-  if ( RevTriggerPressed && FireFullTriggerBounce.fell() && CurrentFireMode != FIRE_MODE_SINGLE )
-  {
-    CurrentFireMode = FIRE_MODE_AUTO;
-  }
-  else if ( (RevTriggerPressed && FireHalfTriggerBounce.fell() && !FireFullTriggerPressed) || (RevTriggerPressed && FireFullTriggerBounce.fell()) )
-  {
-    CurrentFireMode = FIRE_MODE_SINGLE;
-  }
-  else if ( CurrentFireMode = FIRE_MODE_AUTO && FireFullTriggerBounce.rose() )
-  {
-    CurrentFireMode = FIRE_MODE_LASTSHOT;
-  }
-  else if ( CurrentFireMode = FIRE_MODE_SINGLE && (FireHalfTriggerBounce.rose() || FireFullTriggerBounce.rose()) )
-  {
-    CurrentFireMode = FIRE_MODE_IDLE;
-  }
   // This is purely for debugging
   if ( RequestShot )
   {
@@ -473,6 +454,15 @@ void ProcessButtons()
   }
 }
 
+// We are checking for pusher out of battery
+void ProcessOutOfBattery()
+{
+  if ( !CycleControlPressed && CurrentFireMode == FIRE_MODE_IDLE ) // Pusher Stuck out of battery
+  {
+    RequestShot = true;
+    CurrentFireMode = FIRE_MODE_RETRACT;
+  }
+}
 
 // We are toggling between different system states here..
 void ProcessSystemMode()
@@ -653,7 +643,7 @@ void ProcessFiring()
     Pusher.StartBridge();
   }
 
-  if ( ShotsToFire <= 0 && CurrentFireMode != FIRE_MODE_IDLE && CycleControlPressed)
+  if ( ShotsToFire <= 0 && !(CurrentFireMode == FIRE_MODE_IDLE) && CycleControlPressed)
   {
     Pusher.StopBridge();
     CurrentFireMode = FIRE_MODE_IDLE;
