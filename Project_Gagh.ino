@@ -21,7 +21,7 @@
 #define MOTOR_KV 3000
 #define MOTOR_CQB_RPM_SPEED 35000 // RPM calculated by 37800 / (Battery S x 4.2 x motor kv) for percentage of full power that we want the motors near in CQB mode
 byte MotorSpeedFull = 100; // For full-pull
-byte MotorSpeedHalf = 30; // For half-pull. This will be calculated into CQB percentage later
+byte MotorSpeedHalf = 68; // For half-pull. This will be calculated into CQB percentage later
 byte MotorSpeedIdle = 30;
 
 // Modes
@@ -56,8 +56,8 @@ bool RequestAutoStop = false; // Set to true to stop Full Auto
 bool FiringLastShot = false;
 
 // Motor Controls
-#define MOTOR_SPINUP_LAG 110 // How long we give the motors before we know that have spun up.
-#define MOTOR_SPINUP_CQB_LAG 90 // How long we give the motors in CQB before firing a semi auto shot
+#define MOTOR_SPINUP_LAG 90 // How long we give the motors before we know that have spun up.
+#define MOTOR_SPINUP_CQB_LAG 75 // How long we give the motors in CQB before firing a semi auto shot
 #define MOTOR_REV_DOWN_DELAY 250 // How long from command to fully rev down till revdown begins
 #define MOTOR_SPINDOWN_2S 3000
 #define MOTOR_SPINDOWN_3S 3000
@@ -122,7 +122,7 @@ bool JamDetected = false;
 bool RunningFiringSequence = false;
 int PusherSpeedPWM[] = {40, 65, 100, 40, 25, 15,
                         33, 55, 100, 33, 25, 15,
-                        30, 50, 80, 30, 25, 15
+                        30, 50, 80, 50, 25, 15
                        }; // 2s: Slow, Med, High, Single, last shot, retract; 3S; 4S
 #define ROF_SLOW 0
 #define ROF_MEDIUM 1
@@ -130,7 +130,7 @@ int PusherSpeedPWM[] = {40, 65, 100, 40, 25, 15,
 #define ROF_SINGLE 3
 #define ROF_LASTSHOT 4
 #define ROF_RETRACT 5
-byte PusherSpeedIndex = ROF_MEDIUM; // 0 = Slow, 1 = Med, 2 = High (Add base 3 for 3s)
+byte PusherSpeedIndex = ROF_HIGH; // 0 = Slow, 1 = Med, 2 = High (Add base 3 for 3s)
 byte PusherROF = 0; // ROF Percentage
 byte GetPusherSpeed( byte PSI ) {
   return PusherSpeedPWM[ PSI + (Battery.GetBatteryS() - 2) ]; // Mini function to determine pusher speed based on battery size
@@ -193,7 +193,7 @@ void setup() {
 
   pinMode(PIN_CYCLE_CONTROL, INPUT_PULLUP);
   CycleControlBounce.attach( PIN_CYCLE_CONTROL, INPUT_PULLUP );
-  CycleControlBounce.interval( DebounceWindow );
+  CycleControlBounce.interval( 1 );
 
   pinMode( PIN_SPEEDPOT, INPUT );
 
@@ -243,11 +243,11 @@ void setup() {
   CalculateRampRates();
 
   // Set CQB Motor Speed
-  byte MotorkV = MOTOR_KV;
-  byte MotorHalfRPM = MOTOR_CQB_RPM_SPEED;
-  MotorSpeedHalf = 100 * (MotorHalfRPM / (Battery.GetCurrentVoltage() * MotorkV));
-  if ( MotorSpeedHalf >= 100) MotorSpeedHalf = 100;
-  Serial.println( MotorSpeedHalf );
+  /*byte MotorkV = MOTOR_KV;
+    byte MotorHalfRPM = MOTOR_CQB_RPM_SPEED;
+    MotorSpeedHalf = 100 * (MotorHalfRPM / (Battery.GetCurrentVoltage() * MotorkV));
+    if ( MotorSpeedHalf >= 100) MotorSpeedHalf = 100;
+    Serial.println( MotorSpeedHalf );*/
 
   // Now wait until the trigger is high
   Serial.println( F("Waiting for trigger safety") );
@@ -277,7 +277,7 @@ void loop() {
   ProcessSystemMode(); // Find out what the system should be doing
 
   // Override Button commands if bridge is stopped yet pusher is out of battery
-  ProcessOutOfBattery();
+  // ProcessOutOfBattery();
 
   // Detected a change to the command. Reset the last speed change timer.
   if ( PrevCommandRev != CommandRev )
@@ -303,10 +303,10 @@ void loop() {
 void ProcessButtons()
 {
   /*  Set the delay till rev down & lengthen the delay
-   *  if pusher is returning to battery in order to allow
-   *  idling motors to clear a dart out of the cage.
-   */
-  unsigned long MotorRevDownDelay = 0;
+      if pusher is returning to battery in order to allow
+      idling motors to clear a dart out of the cage.
+  */
+  unsigned long MotorRevDownDelay = MOTOR_SPINUP_LAG;
   unsigned long TimeSinceRevDownCommand = 0;
   if ( !(CurrentFireMode == FIRE_MODE_RETRACT) )
   {
@@ -316,7 +316,7 @@ void ProcessButtons()
   {
     MotorRevDownDelay = 500;
   }
-  
+
   // Bounce2.h is buggy and turning off input pullups. Turn it on.
   PORTB = PORTB | 0b00100001; // Force input pullup for Rev and Half pull
   PORTD = PORTD | 0b10010000; // Force input pullup for Cycle Control and Full pull
@@ -332,37 +332,12 @@ void ProcessButtons()
   FireFullTriggerPressed = !(FireFullTriggerBounce.read());
   //Serial.println( FireFullTriggerPressed );
   FireHalfTriggerPressed = !(FireHalfTriggerBounce.read());
- // Debugging commands for port states
-    /*Serial.println( F("HalfTriggerPressed Pin states") );
+  // Debugging commands for port states
+  /*Serial.println( F("HalfTriggerPressed Pin states") );
     Serial.println( !FireHalfTriggerPressed );
     Serial.println( digitalRead( PIN_TRIGGER_HALF ) );
     Serial.println( PINB&0b00000001 );
     Serial.println( PORTB&0b00000001 );*/
-  
-  if ( CycleControlBounce.fell() )
-  {
-    if ( CommandRev == COMMAND_REV_NONE )
-    {
-      ShotsToFire = 0;
-      Serial.println( F("CHECK FIRE! CHECK FIRE!") );
-      Serial.println( F("EMERGENCY HALT") );
-    }
-    Pusher.PusherHeartbeat();
-    Serial.println( F("Bump Bump") );
-    
-    if ( ShotsToFire >= 1 )
-    {
-      ShotsToFire--;
-    }
-    else
-    {
-      ShotsToFire = 0;
-    }
-  }
-  else if ( CycleControlPressed )
-  {
-    Pusher.PusherHeartbeat();
-  }
 
   if ( !(SystemMode == MODE_NORMAL) ) // Something has gone wrong
   {
@@ -372,13 +347,13 @@ void ProcessButtons()
     return;
   }
 
-  if ( RevTriggerPressed )
+  if ( RevTriggerBounce.fell() )
   {
     CQBMode = true;
     MotorSpinupLag = MOTOR_SPINUP_CQB_LAG;
     Serial.println( F("Limit motor speed for lower velocity and fire darts sooner") );
   }
-  else
+  else if ( RevTriggerBounce.rose() )
   {
     CQBMode = false;
     MotorSpinupLag = MOTOR_SPINUP_LAG;
@@ -391,21 +366,17 @@ void ProcessButtons()
     Serial.println( F("Rev Requested") );
     TimeSinceRevRequest = millis();
   }
-  else if ( FireHalfTriggerPressed )
+  else if ( FireHalfTriggerPressed && !FireFullTriggerPressed )
   {
-    if( millis() - TimeSinceRevRequest <= MotorSpinupLag )
-    {
-      RequestShot = false;
-    }
-    else
+    if ( (millis() - TimeSinceRevRequest >= MotorSpinupLag) )
     {
       RequestShot = true;
       CurrentFireMode = FIRE_MODE_SINGLE;
       Serial.println( F("Fire Mission, Single Shot. Over.") );
     }
   }
-  
-  if ( !FireHalfTriggerPressed )
+
+  if ( FireHalfTriggerBounce.rose() )
   {
     RequestRev = false;
     RequestShot = false;
@@ -421,6 +392,13 @@ void ProcessButtons()
     CurrentFireMode = FIRE_MODE_AUTO;
     RequestShot = true; // auto shot request
     Serial.println(F("Fire for effect!"));
+  }
+
+  if ( FireFullTriggerBounce.rose() )
+  {
+    RequestShot = true;
+    CurrentFireMode = FIRE_MODE_LASTSHOT;
+    CommandRev = FIRE_MODE_IDLE;
   }
 
   // Handle Rev Requests
@@ -447,6 +425,32 @@ void ProcessButtons()
     }
   }
   
+  if ( CycleControlBounce.fell() )
+  {
+    if ( CommandRev == COMMAND_REV_NONE )
+    {
+      ShotsToFire = 0;
+      Serial.println( F("CHECK FIRE! CHECK FIRE!") );
+      Serial.println( F("EMERGENCY HALT") );
+    }
+    Pusher.PusherHeartbeat();
+    Serial.println( F("Bump Bump") );
+
+    if ( ShotsToFire >= 1 )
+    {
+      ShotsToFire--;
+    }
+    else
+    {
+      ShotsToFire = 0;
+      RequestShot = false;
+    }
+  }
+  else if ( CycleControlPressed )
+  {
+    Pusher.PusherHeartbeat();
+  }
+
   // This is purely for debugging
   if ( RequestShot )
   {
@@ -640,12 +644,15 @@ void ProcessFiring()
         Pusher.SetBridgeSpeed( GetPusherSpeed( ROF_RETRACT ) );
         break;
     }
+    Serial.print( F("ShotsToFire: ") );
+    Serial.println( ShotsToFire );
     Pusher.StartBridge();
   }
 
-  if ( ShotsToFire <= 0 && !(CurrentFireMode == FIRE_MODE_IDLE) && CycleControlPressed)
+  if ( ShotsToFire <= 0 && CurrentFireMode != FIRE_MODE_IDLE && CycleControlPressed)
   {
     Pusher.StopBridge();
     CurrentFireMode = FIRE_MODE_IDLE;
+    Serial.println( F("Stop Pusher") );
   }
 }
